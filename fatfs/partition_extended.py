@@ -52,7 +52,7 @@ class PartitionExtended:
             >>> print(files)
             ['file1.txt', 'dir1', 'file2.dat']
         """
-        from fatfs.wrapper import DIR_Handle, FILINFO_Handle, pyf_opendir, pyf_readdir, pyf_closedir, PY_FR_OK as FR_OK
+        from fatfs.wrapper import DIR_Handle, FILINFO_Handle, pyf_opendir, pyf_readdir, pyf_closedir, FR_OK
         
         entries = []
         dh = DIR_Handle()
@@ -102,7 +102,7 @@ class PartitionExtended:
             >>> info = partition.stat("/file.txt")
             >>> print(f"Size: {info['size']} bytes")
         """
-        from fatfs.wrapper import FILINFO_Handle, pyf_stat, PY_FR_OK as FR_OK
+        from fatfs.wrapper import FILINFO_Handle, pyf_stat, FR_OK
         
         fh = FILINFO_Handle()
         adjusted_path = self._partition._adjust_path(path)
@@ -222,7 +222,7 @@ class PartitionExtended:
         Raises:
             OSError: If deletion fails
         """
-        from fatfs.wrapper import pyf_unlink, PY_FR_OK as FR_OK
+        from fatfs.wrapper import pyf_unlink, FR_OK
         
         adjusted_path = self._partition._adjust_path(path)
         ret = pyf_unlink(adjusted_path)
@@ -254,7 +254,7 @@ class PartitionExtended:
         Raises:
             OSError: If rename fails
         """
-        from fatfs.wrapper import pyf_rename, PY_FR_OK as FR_OK
+        from fatfs.wrapper import pyf_rename, FR_OK
         
         old_adjusted = self._partition._adjust_path(old_path)
         new_adjusted = self._partition._adjust_path(new_path)

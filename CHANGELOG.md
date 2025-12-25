@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.5] - 2024-12-25
+
+### Fixed
+- **Windows Build Support**: Fixed UnicodeDecodeError in setup.py when building on Windows
+  - Added `encoding="utf-8"` to README.md file reading
+  - Fixes build failures on Windows with Python 3.8+ (cp1252 encoding issue)
+  - Resolves error: `'charmap' codec can't decode byte 0x9d` caused by emoji characters (❌, ✅)
+
+- **Constant Exports**: Fixed missing constant exports in wrapper.pyx
+  - Exported all FRESULT codes: `FR_OK`, `FR_DISK_ERR`, `FR_INT_ERR`, etc.
+  - Exported file access modes: `FA_READ`, `FA_WRITE`, `FA_CREATE_ALWAYS`, etc.
+  - Exported file attributes: `AM_DIR`, `AM_RDO`
+  - Enables proper use of `PartitionExtended.read_file()` and other extended features
+
+- **partition_extended.py**: Updated imports to use correct constant names
+  - Changed `PY_FR_OK` to `FR_OK` throughout
+  - Ensures compatibility with updated wrapper.pyx exports
+
+### Improved
+- **CI/CD**: Added macOS Intel runner (macos-15-intel) to build matrix
+  - Ensures wheels are built for both Intel and ARM64 macOS platforms
+  - Improves platform coverage for PyPI releases
+
+### Technical Details
+- The Windows encoding issue occurred because setup.py used the system default encoding (cp1252 on Windows)
+  to read README.md, which contains UTF-8 emoji characters
+- The missing constants prevented `PartitionExtended` from working properly after compilation
+- All constants are now properly exported and can be imported from `fatfs.wrapper`
+
+### Compatibility
+- Fully compatible with platform-espressif32 builder
+- Tested with ESP32 FatFS image creation and extraction
+- Works with Python 3.8-3.13 on Windows, macOS (Intel & ARM64), and Linux
+
 ## [0.1.4] - 2024-12-25
 
 ### Added
