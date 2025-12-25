@@ -82,21 +82,11 @@ cdef extern from "ff.h":
 
 
     ctypedef struct FILINFO:
-        pass
-        #/* File information structure (FILINFO) */
-        #
-        #typedef struct {
-        #	FSIZE_t	fsize;			/* File size */
-        #	WORD	fdate;			/* Modified date */
-        #	WORD	ftime;			/* Modified time */
-        #	BYTE	fattrib;		/* File attribute */
-        ##if FF_USE_LFN
-        #	TCHAR	altname[FF_SFN_BUF + 1];/* Altenative file name */
-        #	TCHAR	fname[FF_LFN_BUF + 1];	/* Primary file name */
-        ##else
-        #	TCHAR	fname[12 + 1];	/* File name */
-        ##endif
-        #} FILINFO;
+        FSIZE_t fsize
+        WORD fdate
+        WORD ftime
+        BYTE fattrib
+        TCHAR fname[13]  # 12 + 1 when FF_USE_LFN == 0
 
     ctypedef struct MKFS_PARM:
         BYTE fmt
