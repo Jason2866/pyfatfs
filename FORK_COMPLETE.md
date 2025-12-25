@@ -1,13 +1,13 @@
-# Fork Preparation Complete - pyfatfs v0.1.4
+# Fork Preparation Complete - fatfs-ng v0.1.4
 
 ## Summary
 
-The fork of `fatfs-python` has been successfully prepared for PyPI release as `pyfatfs`.
+The fork of `fatfs-python` has been successfully prepared for PyPI release as `fatfs-ng`.
 
 ## Changes Made
 
 ### Package Metadata (setup.py)
-- ✅ Package name: `fatfs` → `pyfatfs`
+- ✅ Package name: `fatfs` → `fatfs-ng`
 - ✅ Version: `0.1.4`
 - ✅ Author: Johann Obermeier
 - ✅ Description: Updated to mention it's a fork with extended features
@@ -16,10 +16,10 @@ The fork of `fatfs-python` has been successfully prepared for PyPI release as `p
 - ✅ Development Status: Beta
 
 ### Documentation (README.md)
-- ✅ Title: "pyfatfs - Enhanced FatFS Python Wrapper"
+- ✅ Title: "fatfs-ng - Enhanced FatFS Python Wrapper"
 - ✅ Fork information with credit to Ladislav Laska
-- ✅ Installation: `pip install pyfatfs`
-- ✅ Updated all references from fatfs-ng to pyfatfs
+- ✅ Installation: `pip install fatfs-ng`
+- ✅ Updated all references from fatfs-ng to fatfs-ng
 - ✅ Fork maintainer: Johann Obermeier
 - ✅ Repository links updated
 
@@ -36,7 +36,7 @@ The fork of `fatfs-python` has been successfully prepared for PyPI release as `p
 - ✅ Updated repository links
 
 ### Platform Integration (platform-espressif32/builder/penv_setup.py)
-- ✅ Updated dependency: `"fatfs": ">=0.1.2"` → `"pyfatfs": ">=0.1.4"`
+- ✅ Updated dependency: `"fatfs": ">=0.1.2"` → `"fatfs-ng": ">=0.1.4"`
 
 ### Fork Information Files
 - ✅ FORK_INFO.md - Fork details and credits
@@ -66,7 +66,7 @@ The import path remains unchanged for backward compatibility:
 from fatfs import Partition, RamDisk, create_extended_partition
 ```
 
-Only the PyPI package name changed: `fatfs` → `pyfatfs`
+Only the PyPI package name changed: `fatfs` → `fatfs-ng`
 
 ## Credits
 
@@ -111,7 +111,7 @@ Only the PyPI package name changed: `fatfs` → `pyfatfs`
 
 6. **Test Installation**:
    ```bash
-   pip install pyfatfs
+   pip install fatfs-ng
    python3 -c "from fatfs import create_extended_partition; print('✅ Installed')"
    ```
 
@@ -134,4 +134,4 @@ Only the PyPI package name changed: `fatfs` → `pyfatfs`
 
 ✅ **Ready for PyPI Release**
 
-All files have been updated with correct package name, author information, and repository links. The fork is properly documented and ready to be published to PyPI as `pyfatfs`.
+All files have been updated with correct package name, author information, and repository links. The fork is properly documented and ready to be published to PyPI as `fatfs-ng`.

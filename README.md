@@ -1,10 +1,10 @@
-# pyfatfs - Enhanced FatFS Python Wrapper
+# fatfs-ng - Enhanced FatFS Python Wrapper
 
 Enhanced Python wrapper around [ChaN's FatFS](http://elm-chan.org/fsw/ff/00index_e.html) library with extended features.
 
 This is a fork of [fatfs-python](https://github.com/krakonos/fatfs-python) by Ladislav Laska, with significant improvements and extended functionality.
 
-## What's New in pyfatfs
+## What's New in fatfs-ng
 
 ### Extended Features (v0.1.4)
 - ✅ **Complete Directory Traversal**: `walk()`, `listdir()`, `stat()`
@@ -23,7 +23,7 @@ This is a fork of [fatfs-python](https://github.com/krakonos/fatfs-python) by La
 ## Installation
 
 ```bash
-pip install pyfatfs
+pip install fatfs-ng
 ```
 
 ## Quick Start
@@ -40,7 +40,7 @@ partition.mount()
 
 # Use extended features
 partition.makedirs("/test/dir", exist_ok=True)
-partition.write_file("/test/file.txt", b"Hello pyfatfs!")
+partition.write_file("/test/file.txt", b"Hello fatfs-ng!")
 
 # Walk directory tree
 for root, dirs, files in partition.walk("/"):
@@ -102,7 +102,7 @@ partition = create_extended_partition(disk)
 
 ## Differences from Original
 
-| Feature | fatfs-python | pyfatfs |
+| Feature | fatfs-python | fatfs-ng |
 |---------|--------------|----------|
 | Directory Traversal | ❌ Limited | ✅ Complete |
 | walk() function | ❌ No | ✅ Yes |
@@ -115,7 +115,7 @@ partition = create_extended_partition(disk)
 ## Credits
 
 - **Original Author**: Ladislav Laska ([fatfs-python](https://github.com/krakonos/fatfs-python))
-- **Fork Maintainer**: Johann Obermeier ([pyfatfs](https://github.com/Jason2866/pyfatfs))
+- **Fork Maintainer**: Johann Obermeier ([fatfs-ng](https://github.com/Jason2866/pyfatfs))
 - **FatFS Library**: ChaN ([elm-chan.org](http://elm-chan.org/fsw/ff/00index_e.html))
 
 ## License
@@ -125,3 +125,5 @@ MIT License (same as original fatfs-python)
 ## Contributing
 
 Issues and pull requests welcome at [https://github.com/Jason2866/pyfatfs](https://github.com/Jason2866/pyfatfs)!
+
+**Note**: Package name on PyPI is `fatfs-ng`, but import remains `from fatfs import ...`

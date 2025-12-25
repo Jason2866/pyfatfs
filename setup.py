@@ -50,7 +50,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
-    name='pyfatfs',
+    name='fatfs-ng',
     version="0.1.4",
     author="Johann Obermeier",
     author_email="obermeier.johann@googlemail.com",

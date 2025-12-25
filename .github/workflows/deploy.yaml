@@ -2,6 +2,9 @@ name: Build and upload to PyPI
 
 on:
   push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   make_sdist:
@@ -9,20 +12,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: true
+    
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
+    
     - name: Install deps
-      run: python -m pip install build twine "cython~=3.0.10"
+      run: python -m pip install build twine "cython>=3.0.0"
+    
     - name: Generate *.c from *.pyx
-      run: python -m cython -3 **/*.pyx
+      run: |
+        python -m cython -3 fatfs/wrapper.pyx
+    
     - name: Build SDist
       run: CYTHONIZE=0 python -m build --sdist
+    
     - uses: actions/upload-artifact@v4
       with:
-        name: fatfs-dist-src
+        name: fatfs-ng-dist-src
         path: dist/*.tar.gz
+    
     - name: Check metadata
       run: twine check dist/*
 
@@ -32,34 +44,47 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+    
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
+      
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.19.2
         env:
           CIBW_ARCHS_MACOS: x86_64 arm64
-          CIBW_BEFORE_BUILD: pip install "cython~=3.0.10"
+          CIBW_BEFORE_BUILD: pip install "cython>=3.0.0"
           CIBW_ENVIRONMENT: CYTHONIZE=1
           CIBW_ENVIRONMENT_PASS_LINUX: CYTHONIZE
-          CIBW_SKIP: "*-win32"
+          CIBW_SKIP: "*-win32 pp* *-musllinux*"
+          CIBW_BUILD: "cp38-* cp39-* cp310-* cp311-* cp312-* cp313-*"
+      
       - uses: actions/upload-artifact@v4
         with:
-          name: fatfs-dist-${{ matrix.os }}
+          name: fatfs-ng-dist-${{ matrix.os }}
           path: wheelhouse/*.whl
 
   upload_to_pypi:
-    if: startsWith(github.ref, 'refs/tags/v')
+    name: Upload to PyPI
     needs: [build_wheels, make_sdist]
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/fatfs-ng
+    permissions:
+      id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
+    
     steps:
-    - uses: actions/download-artifact@v4
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
       with:
-        pattern: fatfs-dist-*
+        pattern: fatfs-ng-dist-*
         merge-multiple: true
         path: dist
-    - uses: pypa/gh-action-pypi-publish@v1.5.0
-      with:
-        user: __token__
-        password: ${{ secrets.pypi_token }}
-        # uncomment for testing
-        # repository_url: https://test.pypi.org/legacy/
+    
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      # Uncomment for testing with TestPyPI:
+      # with:
+      #   repository-url: https://test.pypi.org/legacy/

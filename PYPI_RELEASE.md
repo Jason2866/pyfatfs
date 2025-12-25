@@ -1,4 +1,4 @@
-# PyPI Release Guide for pyfatfs v0.1.4
+# PyPI Release Guide for fatfs-ng v0.1.4
 
 ## Changes in v0.1.4
 
@@ -32,9 +32,9 @@ python3 -m pytest tests/ || echo "No tests found"
 ```
 
 ### 2. Update Version
-- [x] `setup.py`: version="0.1.4", name="pyfatfs"
+- [x] `setup.py`: version="0.1.4", name="fatfs-ng"
 - [x] `CHANGELOG.md`: Added v0.1.4 section
-- [x] `README.md`: Updated to pyfatfs branding
+- [x] `README.md`: Updated to fatfs-ng branding
 
 ### 3. Build Package
 ```bash
@@ -50,8 +50,8 @@ python3 -m build
 # Verify build
 ls -lh dist/
 # Should see:
-# - pyfatfs-0.1.4.tar.gz
-# - pyfatfs-0.1.4-*.whl
+# - fatfs-ng-0.1.4.tar.gz
+# - fatfs-ng-0.1.4-*.whl
 ```
 
 ### 4. Test Package Locally
@@ -61,7 +61,7 @@ python3 -m venv test_env
 source test_env/bin/activate  # or test_env\Scripts\activate on Windows
 
 # Install from local build
-pip install dist/pyfatfs-0.1.4-*.whl
+pip install dist/fatfs-ng-0.1.4-*.whl
 
 # Test import
 python3 -c "from fatfs import Partition, RamDisk, create_extended_partition; print('✅ Import successful')"
@@ -76,7 +76,7 @@ deactivate
 python3 -m twine upload --repository testpypi dist/*
 
 # Test installation from TestPyPI
-pip install --index-url https://test.pypi.org/simple/ pyfatfs==0.1.4
+pip install --index-url https://test.pypi.org/simple/ fatfs-ng==0.1.4
 ```
 
 ### 6. Upload to PyPI
@@ -92,7 +92,7 @@ python3 -m twine upload dist/*
 ### 7. Verify Release
 ```bash
 # Wait a few minutes, then test
-pip install --upgrade pyfatfs
+pip install --upgrade fatfs-ng
 
 # Verify version
 python3 -c "import fatfs; print(fatfs.__version__ if hasattr(fatfs, '__version__') else 'Version not set')"
@@ -132,7 +132,7 @@ Update the dependency version in `platform-espressif32/builder/penv_setup.py`:
 ```python
 python_deps = {
     ...
-    "pyfatfs": ">=0.1.4",  # Changed from "fatfs": ">=0.1.2"
+    "fatfs-ng": ">=0.1.4",  # Changed from "fatfs": ">=0.1.2"
     ...
 }
 ```
@@ -183,6 +183,6 @@ git push origin v0.1.4
 - This is a major feature release with extended functionality
 - Compatible with all Python versions 3.8-3.13
 - Import path remains `from fatfs import ...` for backward compatibility
-- Package name changed from `fatfs` to `pyfatfs` on PyPI
+- Package name changed from `fatfs` to `fatfs-ng` on PyPI
 - Fork of original fatfs-python by Ladislav Laska
 - Maintained by Johann Obermeier
