@@ -11,13 +11,16 @@ All notable changes to this project will be documented in this file.
   - Resolves error: `'charmap' codec can't decode byte 0x9d` caused by emoji characters (❌, ✅)
 
 - **Constant Exports**: Fixed missing constant exports in wrapper.pyx
-  - Exported all FRESULT codes: `FR_OK`, `FR_DISK_ERR`, `FR_INT_ERR`, etc.
-  - Exported file access modes: `FA_READ`, `FA_WRITE`, `FA_CREATE_ALWAYS`, etc.
-  - Exported file attributes: `AM_DIR`, `AM_RDO`
+  - Exported all FRESULT codes as `PY_FR_OK`, `PY_FR_DISK_ERR`, etc.
+  - Exported file access modes as `PY_FA_READ`, `PY_FA_WRITE`, etc.
+  - Exported file attributes as `PY_AM_DIR`, `PY_AM_RDO`
+  - Re-exported in `__init__.py` with cleaner names (`FR_OK`, `FA_READ`, etc.)
   - Enables proper use of `PartitionExtended.read_file()` and other extended features
+  - Note: Use `from fatfs import FR_OK` or `from fatfs.wrapper import PY_FR_OK`
 
 - **partition_extended.py**: Updated imports to use correct constant names
-  - Changed `PY_FR_OK` to `FR_OK` throughout
+  - Changed imports to use `PY_FR_OK`, `PY_FA_READ` from wrapper
+  - Constants are re-exported in `__init__.py` as `FR_OK`, `FA_READ` for convenience
   - Ensures compatibility with updated wrapper.pyx exports
 
 ### Improved
@@ -29,7 +32,9 @@ All notable changes to this project will be documented in this file.
 - The Windows encoding issue occurred because setup.py used the system default encoding (cp1252 on Windows)
   to read README.md, which contains UTF-8 emoji characters
 - The missing constants prevented `PartitionExtended` from working properly after compilation
-- All constants are now properly exported and can be imported from `fatfs.wrapper`
+- Constants are exported with `PY_` prefix from wrapper (e.g., `PY_FR_OK`) to avoid conflicts with C enums
+- Constants are re-exported in `__init__.py` without prefix (e.g., `FR_OK`) for convenience
+- Use `from fatfs import FR_OK` for cleaner imports
 
 ### Compatibility
 - Fully compatible with platform-espressif32 builder
