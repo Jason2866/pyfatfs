@@ -84,53 +84,29 @@
 / Locale and Namespace Configurations
 /---------------------------------------------------------------------------*/
 
-#define FF_CODE_PAGE	932
+#define FF_CODE_PAGE	437
 /* This option specifies the OEM code page to be used on the target system.
 /  Incorrect code page setting can cause a file open failure.
 /
-/   437 - U.S.
-/   720 - Arabic
-/   737 - Greek
-/   771 - KBL
-/   775 - Baltic
-/   850 - Latin 1
-/   852 - Latin 2
-/   855 - Cyrillic
-/   857 - Turkish
-/   860 - Portuguese
-/   861 - Icelandic
-/   862 - Hebrew
-/   863 - Canadian French
-/   864 - Arabic
-/   865 - Nordic
-/   866 - Russian
-/   869 - Greek 2
+/   437 - U.S. (default for ESP-IDF compatibility)
 /   932 - Japanese (DBCS)
 /   936 - Simplified Chinese (DBCS)
 /   949 - Korean (DBCS)
 /   950 - Traditional Chinese (DBCS)
-/     0 - Include all code pages above and configured by f_setcp()
 */
 
 
-#define FF_USE_LFN		0
+#define FF_USE_LFN		2
 #define FF_MAX_LFN		255
 /* The FF_USE_LFN switches the support for LFN (long file name).
 /
 /   0: Disable LFN. FF_MAX_LFN has no effect.
 /   1: Enable LFN with static working buffer on the BSS. Always NOT thread-safe.
-/   2: Enable LFN with dynamic working buffer on the STACK.
+/   2: Enable LFN with dynamic working buffer on the STACK. (ESP-IDF compatible)
 /   3: Enable LFN with dynamic working buffer on the HEAP.
 /
-/  To enable the LFN, ffunicode.c needs to be added to the project. The LFN feature
-/  requiers certain internal working buffer occupies (FF_MAX_LFN + 1) * 2 bytes and
-/  additional (FF_MAX_LFN + 44) / 15 * 32 bytes when exFAT is enabled.
-/  The FF_MAX_LFN defines size of the working buffer in UTF-16 code unit and it can
-/  be in range of 12 to 255. It is recommended to be set 255 to fully support the LFN
-/  specification.
-/  When use stack for the working buffer, take care on stack overflow. When use heap
-/  memory for the working buffer, memory management functions, ff_memalloc() and
-/  ff_memfree() exemplified in ffsystem.c, need to be added to the project. */
+/  ESP-IDF uses FF_USE_LFN = 2 (stack-based) for compatibility.
+*/
 
 
 #define FF_LFN_UNICODE	0
