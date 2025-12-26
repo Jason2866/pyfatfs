@@ -224,7 +224,7 @@ def pyf_mkfs (path, n_fat = 1, align = 0, n_root = 0, au_size = 0, workarea_size
     opt.align = align # auto align from lower layer
     opt.n_root = n_root # auto number of root FAT entries
     opt.au_size = au_size # auto
-    cdef FRESULT ret = f_mkfs(path, &opt, buff, 512)
+    cdef FRESULT ret = f_mkfs(path, &opt, buff, workarea_size)
     PyMem_Free(buff)
     return ret
 ## Divide a physical drive into some partitions
