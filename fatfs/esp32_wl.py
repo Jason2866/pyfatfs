@@ -1,20 +1,59 @@
 """
 ESP32 Wear Leveling Layer for FAT Filesystem Images
 
-This module implements the ESP-IDF wear leveling layer structure to wrap
-FAT filesystem images for use with ESP32 devices.
+This module implements the ESP-IDF wear leveling layer structure following
+the official wl_fatfsgen.py implementation from ESP-IDF.
 
-Based on ESP-IDF wear_levelling component:
-https://github.com/espressif/esp-idf/tree/master/components/wear_levelling
+Based on ESP-IDF components:
+- https://github.com/espressif/esp-idf/blob/master/components/fatfs/wl_fatfsgen.py
+- https://github.com/espressif/esp-idf/tree/master/components/wear_levelling
 
-The ESP32 Arduino Core's FFat library requires FAT partitions to be wrapped
-with a wear leveling layer. This module provides that functionality.
+ESP-IDF WL Layout:
+    [dummy sector] [FAT data] [state1] [state2] [config]
+    
+    - dummy sector: 1 sector (0xFF filled)
+    - FAT data: N sectors (actual filesystem)
+    - state1: 1 sector (WL_State structure)
+    - state2: 1 sector (WL_State copy for redundancy)
+    - config: 1 sector (WL_Config structure)
+    
+    Total overhead: 4 sectors
+
+WL_State structure (64 bytes header + padding):
+    - pos: uint32_t (4 bytes) - Current position
+    - max_pos: uint32_t (4 bytes) - plain_fat_sectors + 1 (includes dummy)
+    - move_count: uint32_t (4 bytes) - Move counter
+    - access_count: uint32_t (4 bytes) - Access counter
+    - max_count: uint32_t (4 bytes) - Update rate (typically 16)
+    - block_size: uint32_t (4 bytes) - Sector size (4096)
+    - version: uint32_t (4 bytes) - WL version (2)
+    - device_id: uint32_t (4 bytes) - Random device ID
+    - reserved: 28 bytes (0x00)
+    - crc32: uint32_t (4 bytes) - CRC32 of first 60 bytes
+    - padding: rest of sector filled with 0xFF
+
+WL_Config structure (48 bytes header + padding):
+    - start_addr: uint32_t (4 bytes) - Start address (0)
+    - full_mem_size: uint32_t (4 bytes) - Full partition size
+    - page_size: uint32_t (4 bytes) - Page size (= sector_size)
+    - sector_size: uint32_t (4 bytes) - Sector size (4096)
+    - updaterate: uint32_t (4 bytes) - Update rate (16)
+    - wr_size: uint32_t (4 bytes) - Write size (16)
+    - version: uint32_t (4 bytes) - Version (2)
+    - temp_buff_size: uint32_t (4 bytes) - Temp buffer size (32)
+    - crc32: uint32_t (4 bytes) - CRC32 of first 32 bytes
+    - padding: 3x uint32_t (12 bytes) zeros for alignment
+    - rest: filled with 0xFF to sector size
 
 Example:
-    >>> from fatfs import RamDisk, Partition, create_esp32_wl_image
+    >>> from fatfs import RamDisk, Partition, create_esp32_wl_image_v2
     >>> 
     >>> # Create FAT filesystem
-    >>> storage = bytearray(1024 * 1024)
+    >>> partition_size = 1507328  # Total partition size
+    >>> wl_overhead = 4 * 4096    # 4 sectors for WL
+    >>> fat_size = partition_size - wl_overhead
+    >>> 
+    >>> storage = bytearray(fat_size)
     >>> disk = RamDisk(storage, sector_size=4096)
     >>> partition = Partition(disk)
     >>> partition.mkfs()
@@ -22,100 +61,80 @@ Example:
     >>> # ... add files ...
     >>> partition.unmount()
     >>> 
-    >>> # Wrap with wear leveling for ESP32
-    >>> wl_image = create_esp32_wl_image(storage, partition_size=1536*1024)
+    >>> # Wrap with wear leveling for ESP32 (ESP-IDF layout)
+    >>> wl_image = create_esp32_wl_image_v2(storage, partition_size)
     >>> 
     >>> # Write to file
     >>> with open('fatfs.bin', 'wb') as f:
     >>>     f.write(wl_image)
-
-Structure:
-    [WL State 1][WL State 2][FAT Data][Temp][WL State 3][WL State 4]
-       4096        4096      N×4096    4096     4096        4096
-
-WL_State structure (48 bytes):
-    - pos: uint32_t (4 bytes) - Current position
-    - max_pos: uint32_t (4 bytes) - Maximum position  
-    - move_count: uint32_t (4 bytes) - Move counter
-    - access_count: uint32_t (4 bytes) - Access counter
-    - max_count: uint32_t (4 bytes) - Maximum count
-    - block_size: uint32_t (4 bytes) - Block size (sector size, typically 4096)
-    - version: uint32_t (4 bytes) - WL version (2)
-    - device_id: uint32_t (4 bytes) - Device ID
-    - reserved: 12 bytes - Reserved (0xFF)
-    - crc32: uint32_t (4 bytes) - CRC32 of the structure
 """
 
 import struct
 import zlib
+import random
 from typing import Optional, Tuple
 
 
 class ESP32WearLeveling:
-    """ESP32 Wear Leveling Layer for FAT filesystem
+    """ESP32 Wear Leveling Layer following ESP-IDF wl_fatfsgen.py implementation
     
-    This class implements the ESP-IDF wear leveling structure that wraps
-    FAT filesystem images for use with ESP32 devices.
+    This class implements the exact ESP-IDF wear leveling structure as used
+    by wl_fatfsgen.py and the ESP32 Arduino FFat library.
     
     Attributes:
         sector_size: Size of each sector in bytes (default: 4096)
-        update_rate: Update rate for wear leveling (default: 16)
-        wl_temp_size: Number of temp sectors (default: 1)
-        wl_state_size: Number of state sector copies (default: 2)
     """
     
-    # Constants
+    # Constants from ESP-IDF
     WL_VERSION = 2
-    WL_STATE_SIZE = 48  # Size of WL_State structure in bytes
-    WL_RESULT_OK = 0
-    WL_RESULT_FAIL = -1
+    WL_STATE_HEADER_SIZE = 64  # Size of WL_State header
+    WL_CONFIG_HEADER_SIZE = 48  # Size of WL_Config header
+    WL_DUMMY_SECTORS_COUNT = 1
+    WL_STATE_COPY_COUNT = 2
+    WL_CFG_SECTORS_COUNT = 1
+    UPDATE_RATE = 16  # Default update rate from ESP-IDF
+    WR_SIZE = 16      # Default write size from ESP-IDF
+    TEMP_BUFF_SIZE = 32  # Default temp buffer size from ESP-IDF
     
-    # Default configuration
+    # Total WL overhead: 1 dummy + 2 states + 1 config = 4 sectors
+    WL_TOTAL_SECTORS = WL_DUMMY_SECTORS_COUNT + WL_STATE_COPY_COUNT + WL_CFG_SECTORS_COUNT
+    
     DEFAULT_SECTOR_SIZE = 4096
-    DEFAULT_UPDATE_RATE = 16
-    DEFAULT_WL_TEMP_SIZE = 1  # Number of temp sectors
-    DEFAULT_WL_STATE_SIZE = 2  # Number of state sectors (2 copies at start, 2 at end)
-    DEFAULT_WL_CFG_SIZE = 2    # Number of config sectors (2 at start, 2 at end)
-    DEFAULT_WL_DUMMY_SIZE = 4  # Number of dummy/reserved sectors
     
-    def __init__(self, sector_size: int = DEFAULT_SECTOR_SIZE, 
-                 update_rate: int = DEFAULT_UPDATE_RATE):
+    def __init__(self, sector_size: int = DEFAULT_SECTOR_SIZE):
         """
         Initialize ESP32 Wear Leveling Layer
         
         Args:
             sector_size: Size of each sector in bytes (default: 4096)
-            update_rate: Update rate for wear leveling (default: 16)
         """
         self.sector_size = sector_size
-        self.update_rate = update_rate
-        self.wl_temp_size = self.DEFAULT_WL_TEMP_SIZE
-        self.wl_state_size = self.DEFAULT_WL_STATE_SIZE
-        self.wl_cfg_size = self.DEFAULT_WL_CFG_SIZE
-        self.wl_dummy_size = self.DEFAULT_WL_DUMMY_SIZE
         
     def create_wl_state(self, pos: int = 0, max_pos: int = 0, 
                        move_count: int = 0, access_count: int = 0,
-                       max_count: int = 0, device_id: int = 0) -> bytes:
+                       max_count: int = UPDATE_RATE, device_id: Optional[int] = None) -> bytes:
         """
-        Create a WL_State structure
+        Create a WL_State structure following ESP-IDF format
         
         Args:
             pos: Current position (default: 0)
-            max_pos: Maximum position (number of FAT sectors)
+            max_pos: plain_fat_sectors + WL_DUMMY_SECTORS_COUNT
             move_count: Move counter (default: 0)
             access_count: Access counter (default: 0)
-            max_count: Maximum count (update_rate * fat_sectors)
-            device_id: Device ID (default: 0)
+            max_count: Update rate (default: 16)
+            device_id: Device ID (default: random)
             
         Returns:
-            bytes: 48-byte WL_State structure with CRC32
+            bytes: WL_State structure (64 bytes header + CRC)
         """
-        # Pack structure without CRC (44 bytes total)
-        # 8 uint32_t fields = 32 bytes
+        if device_id is None:
+            device_id = random.randint(0, 0xFFFFFFFF)
+        
+        # Pack WL_State structure (60 bytes before CRC)
+        # 8 uint32_t fields + 28 bytes reserved = 60 bytes
         state_data = struct.pack('<IIIIIIII',
             pos,                    # pos (4 bytes)
-            max_pos,                # max_pos (4 bytes)
+            max_pos,                # max_pos (4 bytes) 
             move_count,             # move_count (4 bytes)
             access_count,           # access_count (4 bytes)
             max_count,              # max_count (4 bytes)
@@ -123,16 +142,144 @@ class ESP32WearLeveling:
             self.WL_VERSION,        # version (4 bytes)
             device_id               # device_id (4 bytes)
         )
-        # Add reserved bytes (12 bytes) to make 44 bytes total
-        state_data += b'\xFF' * 12
+        # Add 28 bytes reserved (0x00, not 0xFF as per ESP-IDF)
+        state_data += b'\x00' * 28
         
-        # Calculate CRC32 of the structure (44 bytes)
+        # Calculate CRC32 of the first 60 bytes
         crc = zlib.crc32(state_data) & 0xFFFFFFFF
         
-        # Append CRC32 (4 bytes) to make total 48 bytes
+        # Append CRC32 (4 bytes) to make 64 bytes total
         state_with_crc = state_data + struct.pack('<I', crc)
         
         return state_with_crc
+    
+    def create_wl_config(self, partition_size: int, device_id: Optional[int] = None) -> bytes:
+        """
+        Create a WL_Config structure following ESP-IDF format
+        
+        Args:
+            partition_size: Total partition size in bytes
+            device_id: Device ID (optional, not used in config but kept for consistency)
+            
+        Returns:
+            bytes: WL_Config structure (48 bytes header)
+        """
+        # Pack WL_Config structure (32 bytes before CRC)
+        config_data = struct.pack('<IIIIIIII',
+            0,                      # start_addr (4 bytes)
+            partition_size,         # full_mem_size (4 bytes)
+            self.sector_size,       # page_size (4 bytes)
+            self.sector_size,       # sector_size (4 bytes)
+            self.UPDATE_RATE,       # updaterate (4 bytes)
+            self.WR_SIZE,           # wr_size (4 bytes)
+            self.WL_VERSION,        # version (4 bytes)
+            self.TEMP_BUFF_SIZE     # temp_buff_size (4 bytes)
+        )
+        
+        # Calculate CRC32 of the first 32 bytes
+        crc = zlib.crc32(config_data) & 0xFFFFFFFF
+        
+        # Append CRC32 + 3 zeros for alignment (48 bytes total)
+        config_with_crc = config_data + struct.pack('<IIII', crc, 0, 0, 0)
+        
+        return config_with_crc
+    
+    def wrap_fat_image_v2(self, fat_data: bytes, partition_size: int) -> bytes:
+        """
+        Wrap a FAT filesystem image with ESP-IDF wear leveling layout
+        
+        This follows the exact layout from ESP-IDF wl_fatfsgen.py:
+        [dummy sector] [FAT data] [state1] [state2] [config]
+        
+        Args:
+            fat_data: Raw FAT filesystem data (without WL overhead)
+            partition_size: Total partition size in bytes (including WL overhead)
+            
+        Returns:
+            bytes: Wear-leveling wrapped FAT image
+            
+        Raises:
+            ValueError: If FAT data doesn't fit in partition
+        """
+        # Calculate sector counts
+        total_sectors = partition_size // self.sector_size
+        wl_overhead_sectors = self.WL_TOTAL_SECTORS  # 4 sectors
+        plain_fat_sectors = total_sectors - wl_overhead_sectors
+        
+        # Validate FAT data size
+        fat_data_size = len(fat_data)
+        max_fat_size = plain_fat_sectors * self.sector_size
+        
+        if fat_data_size > max_fat_size:
+            raise ValueError(
+                f"FAT data ({fat_data_size} bytes) exceeds available space "
+                f"({max_fat_size} bytes, {plain_fat_sectors} sectors)"
+            )
+        
+        # Read total_sectors from FAT boot sector for validation
+        if len(fat_data) >= 21:
+            fat_total_sectors = struct.unpack('<H', fat_data[19:21])[0]
+            if fat_total_sectors != plain_fat_sectors:
+                print(f"Warning: FAT boot sector total_sectors ({fat_total_sectors}) "
+                      f"!= calculated plain_fat_sectors ({plain_fat_sectors})")
+        
+        # ESP-IDF formula: max_pos = plain_fat_sectors + WL_DUMMY_SECTORS_COUNT
+        max_pos = plain_fat_sectors + self.WL_DUMMY_SECTORS_COUNT
+        
+        # max_count is just UPDATE_RATE (not multiplied by sectors!)
+        max_count = self.UPDATE_RATE
+        
+        # Generate random device ID
+        device_id = random.randint(0, 0xFFFFFFFF)
+        
+        # Create WL state
+        wl_state = self.create_wl_state(
+            pos=0,
+            max_pos=max_pos,
+            move_count=0,
+            access_count=0,
+            max_count=max_count,
+            device_id=device_id
+        )
+        
+        # Create WL config
+        wl_config = self.create_wl_config(partition_size, device_id)
+        
+        # Pad structures to full sectors
+        wl_state_sector = wl_state + (b'\xFF' * (self.sector_size - len(wl_state)))
+        wl_config_sector = wl_config + (b'\xFF' * (self.sector_size - len(wl_config)))
+        
+        # Build the wear-leveling image following ESP-IDF layout
+        wl_image = bytearray(partition_size)
+        
+        # 1. Dummy sector at beginning (all 0xFF)
+        wl_image[0:self.sector_size] = b'\xFF' * self.sector_size
+        
+        # 2. FAT data after dummy sector
+        fat_start = self.sector_size
+        wl_image[fat_start:fat_start + len(fat_data)] = fat_data
+        
+        # 3. Pad FAT data area with 0xFF
+        fat_end = fat_start + (plain_fat_sectors * self.sector_size)
+        if fat_start + len(fat_data) < fat_end:
+            wl_image[fat_start + len(fat_data):fat_end] = b'\xFF' * (fat_end - fat_start - len(fat_data))
+        
+        # 4. State sectors at end (before config)
+        # state1 at: partition_size - 3 * sector_size
+        # state2 at: partition_size - 2 * sector_size
+        addr_state1 = partition_size - 3 * self.sector_size
+        addr_state2 = partition_size - 2 * self.sector_size
+        wl_image[addr_state1:addr_state1 + self.sector_size] = wl_state_sector
+        wl_image[addr_state2:addr_state2 + self.sector_size] = wl_state_sector
+        
+        # 5. Config sector at very end
+        addr_config = partition_size - self.sector_size
+        wl_image[addr_config:addr_config + self.sector_size] = wl_config_sector
+        
+        return bytes(wl_image)
+    
+    # Keep old method for backwards compatibility
+    wrap_fat_image = wrap_fat_image_v2
     
     def wrap_fat_image(self, fat_data: bytes, partition_size: int) -> bytes:
         """
@@ -306,11 +453,14 @@ class ESP32WearLeveling:
 def create_esp32_wl_image(fat_data: bytes, partition_size: int, 
                           sector_size: int = 4096) -> bytes:
     """
-    Convenience function to create a wear-leveling wrapped FAT image for ESP32
+    Create a wear-leveling wrapped FAT image for ESP32 following ESP-IDF layout
+    
+    This function follows the exact ESP-IDF wl_fatfsgen.py implementation:
+    Layout: [dummy sector] [FAT data] [state1] [state2] [config]
     
     Args:
-        fat_data: Raw FAT filesystem data
-        partition_size: Total partition size in bytes
+        fat_data: Raw FAT filesystem data (without WL overhead)
+        partition_size: Total partition size in bytes (including WL overhead)
         sector_size: Sector size in bytes (default: 4096)
         
     Returns:
@@ -318,22 +468,37 @@ def create_esp32_wl_image(fat_data: bytes, partition_size: int,
         
     Example:
         >>> from fatfs import RamDisk, Partition, create_esp32_wl_image
-        >>> storage = bytearray(1024 * 1024)
-        >>> disk = RamDisk(storage, sector_size=4096)
+        >>> 
+        >>> # Calculate sizes
+        >>> partition_size = 1507328  # Total partition
+        >>> wl_overhead = 4 * 4096    # 4 sectors for WL
+        >>> fat_size = partition_size - wl_overhead
+        >>> 
+        >>> # Create FAT filesystem
+        >>> storage = bytearray(fat_size)
+        >>> disk = RamDisk(storage, sector_size=4096, sector_count=fat_size//4096)
         >>> partition = Partition(disk)
         >>> partition.mkfs()
         >>> partition.mount()
         >>> # ... add files ...
         >>> partition.unmount()
-        >>> wl_image = create_esp32_wl_image(storage, partition_size=1536*1024)
+        >>> 
+        >>> # Wrap with WL
+        >>> wl_image = create_esp32_wl_image(storage, partition_size)
+        >>> with open('fatfs.bin', 'wb') as f:
+        >>>     f.write(wl_image)
     """
     wl = ESP32WearLeveling(sector_size=sector_size)
-    return wl.wrap_fat_image(fat_data, partition_size)
+    return wl.wrap_fat_image_v2(fat_data, partition_size)
+
+
+# Alias for backwards compatibility
+create_esp32_wl_image_v2 = create_esp32_wl_image
 
 
 def extract_fat_from_esp32_wl(wl_data: bytes, sector_size: int = 4096) -> Optional[bytes]:
     """
-    Convenience function to extract FAT data from ESP32 wear-leveling image
+    Extract FAT data from ESP32 wear-leveling image (ESP-IDF layout)
     
     Args:
         wl_data: Wear-leveling wrapped image
@@ -351,13 +516,30 @@ def extract_fat_from_esp32_wl(wl_data: bytes, sector_size: int = 4096) -> Option
         >>>     # Mount and read FAT data
         >>>     pass
     """
-    wl = ESP32WearLeveling(sector_size=sector_size)
-    return wl.extract_fat_from_wl(wl_data)
+    # Check if first sector is dummy (all 0xFF)
+    if len(wl_data) < sector_size:
+        return None
+    
+    first_sector = wl_data[:sector_size]
+    if not all(b == 0xFF for b in first_sector):
+        return None
+    
+    # Calculate FAT data size
+    total_sectors = len(wl_data) // sector_size
+    wl_overhead = ESP32WearLeveling.WL_TOTAL_SECTORS  # 4 sectors
+    fat_sectors = total_sectors - wl_overhead
+    
+    # Extract FAT data (skip dummy sector)
+    fat_start = sector_size
+    fat_size = fat_sectors * sector_size
+    fat_data = wl_data[fat_start:fat_start + fat_size]
+    
+    return fat_data
 
 
 def is_esp32_wl_image(data: bytes, sector_size: int = 4096) -> bool:
     """
-    Check if data is an ESP32 wear-leveling wrapped image
+    Check if data is an ESP32 wear-leveling wrapped image (ESP-IDF layout)
     
     Args:
         data: Image data to check
@@ -373,17 +555,32 @@ def is_esp32_wl_image(data: bytes, sector_size: int = 4096) -> bool:
         >>> if is_esp32_wl_image(data):
         >>>     print("This is a wear-leveling wrapped image")
     """
-    wl = ESP32WearLeveling(sector_size=sector_size)
-    if len(data) < wl.WL_STATE_SIZE:
+    if len(data) < sector_size * 4:  # Need at least 4 sectors
         return False
     
-    first_state = data[:wl.WL_STATE_SIZE]
-    return wl.verify_wl_state(first_state)
+    # Check if first sector is dummy (all 0xFF)
+    first_sector = data[:sector_size]
+    if not all(b == 0xFF for b in first_sector):
+        return False
+    
+    # Check if second sector looks like FAT boot sector
+    second_sector = data[sector_size:sector_size + 512]
+    # FAT boot sector starts with jump instruction (EB xx 90 or E9 xx xx)
+    if len(second_sector) < 3:
+        return False
+    if second_sector[0] not in (0xEB, 0xE9):
+        return False
+    
+    # Check boot signature at offset 510-511
+    if second_sector[510:512] != b'\x55\xAA':
+        return False
+    
+    return True
 
 
 def calculate_esp32_wl_overhead(partition_size: int, sector_size: int = 4096) -> dict:
     """
-    Calculate wear leveling overhead for ESP32
+    Calculate wear leveling overhead for ESP32 (ESP-IDF layout)
     
     Args:
         partition_size: Total partition size in bytes
@@ -394,12 +591,14 @@ def calculate_esp32_wl_overhead(partition_size: int, sector_size: int = 4096) ->
         
     Example:
         >>> from fatfs import calculate_esp32_wl_overhead
-        >>> info = calculate_esp32_wl_overhead(1536 * 1024)
+        >>> info = calculate_esp32_wl_overhead(1507328)
         >>> print(f"FAT data size: {info['fat_size']} bytes")
         >>> print(f"WL overhead: {info['wl_overhead_size']} bytes")
+        >>> print(f"Layout: {info['layout']}")
     """
-    wl = ESP32WearLeveling(sector_size=sector_size)
-    total_sectors, wl_overhead_sectors, fat_sectors = wl.calculate_overhead(partition_size)
+    total_sectors = partition_size // sector_size
+    wl_overhead_sectors = ESP32WearLeveling.WL_TOTAL_SECTORS  # 4 sectors
+    fat_sectors = total_sectors - wl_overhead_sectors
     
     return {
         'partition_size': partition_size,
@@ -409,4 +608,6 @@ def calculate_esp32_wl_overhead(partition_size: int, sector_size: int = 4096) ->
         'wl_overhead_size': wl_overhead_sectors * sector_size,
         'fat_sectors': fat_sectors,
         'fat_size': fat_sectors * sector_size,
+        'layout': f'[dummy:{sector_size}] [FAT:{fat_sectors * sector_size}] [state1:{sector_size}] [state2:{sector_size}] [config:{sector_size}]',
+        'layout_description': 'ESP-IDF wl_fatfsgen.py compatible layout'
     }

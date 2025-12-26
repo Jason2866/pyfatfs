@@ -51,7 +51,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name='fatfs-ng',
-    version="0.1.13",
+    version="0.1.14",
     author="Johann Obermeier",
     author_email="obermeier.johann@googlemail.com",
     description="Enhanced Python wrapper around ChaN's FatFS library - Fork of fatfs-python with extended features.",
