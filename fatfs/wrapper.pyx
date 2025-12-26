@@ -307,6 +307,8 @@ class Partition():
                 self.pname = bytes("%d:" % i, 'ascii')
                 __diskio_wrapper_disks[i] = disk
                 break
+        else:
+            # All slots are full
             raise FatFSException("__init__", -1)
     def _adjust_path(self, path):
         """
