@@ -61,7 +61,7 @@ partition.unmount()
 - Open, read, write files
 - Create directories
 
-### Extended Operations (new in pyfatfs)
+### Extended Operations (new in fatfs-ng)
 - Complete directory traversal with `walk()`
 - List directory contents with `listdir()`
 - Get file information with `stat()`
