@@ -75,6 +75,8 @@ class ESP32WearLeveling:
     DEFAULT_UPDATE_RATE = 16
     DEFAULT_WL_TEMP_SIZE = 1  # Number of temp sectors
     DEFAULT_WL_STATE_SIZE = 2  # Number of state sectors (2 copies at start, 2 at end)
+    DEFAULT_WL_CFG_SIZE = 2    # Number of config sectors (2 at start, 2 at end)
+    DEFAULT_WL_DUMMY_SIZE = 4  # Number of dummy/reserved sectors
     
     def __init__(self, sector_size: int = DEFAULT_SECTOR_SIZE, 
                  update_rate: int = DEFAULT_UPDATE_RATE):
@@ -89,6 +91,8 @@ class ESP32WearLeveling:
         self.update_rate = update_rate
         self.wl_temp_size = self.DEFAULT_WL_TEMP_SIZE
         self.wl_state_size = self.DEFAULT_WL_STATE_SIZE
+        self.wl_cfg_size = self.DEFAULT_WL_CFG_SIZE
+        self.wl_dummy_size = self.DEFAULT_WL_DUMMY_SIZE
         
     def create_wl_state(self, pos: int = 0, max_pos: int = 0, 
                        move_count: int = 0, access_count: int = 0,
@@ -147,16 +151,19 @@ class ESP32WearLeveling:
         # Calculate sector counts
         total_sectors = partition_size // self.sector_size
         
-        # WL structure:
+        # WL structure (based on ESP-IDF actual implementation):
         # - State sector 1 (at beginning)
         # - State sector 2 (at beginning + 1)
         # - FAT data sectors
         # - Temp sector (for wear leveling operations)
         # - State sector 1 copy (near end)
         # - State sector 2 copy (at end)
+        # 
+        # ESP-IDF reserves 1 additional sector (likely for alignment or safety)
+        # Total overhead: 2 + 1 + 2 + 1 = 6 sectors
         
         # Calculate available sectors for FAT data
-        wl_overhead_sectors = (self.wl_state_size * 2) + self.wl_temp_size
+        wl_overhead_sectors = (self.wl_state_size * 2) + self.wl_temp_size + 1  # +1 for ESP-IDF reserved
         fat_sectors = total_sectors - wl_overhead_sectors
         
         # Ensure FAT data fits
@@ -284,7 +291,13 @@ class ESP32WearLeveling:
             Tuple of (total_sectors, wl_overhead_sectors, fat_sectors)
         """
         total_sectors = partition_size // self.sector_size
-        wl_overhead_sectors = (self.wl_state_size * 2) + self.wl_temp_size
+        # Total WL overhead based on ESP-IDF actual implementation:
+        # - 2 state sectors at start
+        # - 1 temp sector
+        # - 2 state sectors at end
+        # - 1 reserved sector (ESP-IDF specific)
+        # Total: 6 sectors
+        wl_overhead_sectors = (self.wl_state_size * 2) + self.wl_temp_size + 1
         fat_sectors = total_sectors - wl_overhead_sectors
         
         return (total_sectors, wl_overhead_sectors, fat_sectors)
