@@ -1,6 +1,6 @@
 # fatfs-ng - Enhanced FatFS Python Wrapper
 
-Enhanced Python wrapper around [ChaN's FatFS](http://elm-chan.org/fsw/ff/00index_e.html) library with extended features.
+Enhanced Python wrapper around [ChaN's FatFS](http://elm-chan.org/fsw/ff/00index_e.html) library with extended features and ESP32 support.
 
 This is a fork of [fatfs-python](https://github.com/krakonos/fatfs-python) by Ladislav Laska, with significant improvements and extended functionality.
 
@@ -12,6 +12,7 @@ This is a fork of [fatfs-python](https://github.com/krakonos/fatfs-python) by La
 - ✅ **File Operations**: `remove()`, `rmdir()`, `rename()`
 - ✅ **Convenience Methods**: `makedirs()`, `read_file()`, `write_file()`
 - ✅ **Bulk Operations**: `copy_tree_from()`, `copy_tree_to()`
+- ✅ **ESP32 Wear Leveling**: Full support for ESP32 FAT filesystem images
 
 ### Improvements
 - ✅ **Fixed SyntaxWarnings** in Python 3.13+
@@ -51,6 +52,67 @@ from pathlib import Path
 partition.copy_tree_to("/", Path("./extracted"))
 
 partition.unmount()
+```
+
+## ESP32 Wear Leveling Support
+
+Create FAT filesystem images compatible with ESP32 Arduino Core's FFat library:
+
+```python
+from fatfs import (
+    RamDisk, 
+    Partition, 
+    create_esp32_wl_image,
+    calculate_esp32_wl_overhead
+)
+
+# Calculate overhead
+partition_size = 1536 * 1024  # 1.5 MB
+wl_info = calculate_esp32_wl_overhead(partition_size)
+print(f"FAT data size: {wl_info['fat_size']} bytes")
+print(f"WL overhead: {wl_info['wl_overhead_size']} bytes")
+
+# Create FAT filesystem
+storage = bytearray(wl_info['fat_size'])
+disk = RamDisk(storage, sector_size=4096)
+partition = Partition(disk)
+partition.mkfs()
+partition.mount()
+
+# Add files
+with partition.open("/test.txt", "w") as f:
+    f.write(b"Hello ESP32!")
+
+partition.unmount()
+
+# Wrap with ESP32 wear leveling layer
+wl_image = create_esp32_wl_image(storage, partition_size)
+
+# Write to file for ESP32
+with open("fatfs.bin", "wb") as f:
+    f.write(wl_image)
+```
+
+Extract from ESP32 wear-leveling image:
+
+```python
+from fatfs import extract_fat_from_esp32_wl, is_esp32_wl_image
+
+# Read image from ESP32
+with open("downloaded.bin", "rb") as f:
+    wl_image = f.read()
+
+# Check if it's a WL image
+if is_esp32_wl_image(wl_image):
+    # Extract FAT data
+    fat_data = extract_fat_from_esp32_wl(wl_image)
+    
+    # Mount and read
+    disk = RamDisk(bytearray(fat_data), sector_size=4096)
+    partition = Partition(disk)
+    partition.mount()
+    # ... read files ...
+    partition.unmount()
 ```
 
 ## Features

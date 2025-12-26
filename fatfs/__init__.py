@@ -8,6 +8,25 @@ try:
 except ImportError:
     __all__ = ["wrapper", "diskio"]
 
+# Import ESP32 Wear Leveling support
+try:
+    from fatfs.esp32_wl import (
+        ESP32WearLeveling,
+        create_esp32_wl_image,
+        extract_fat_from_esp32_wl,
+        is_esp32_wl_image,
+        calculate_esp32_wl_overhead
+    )
+    __all__.extend([
+        "ESP32WearLeveling",
+        "create_esp32_wl_image", 
+        "extract_fat_from_esp32_wl",
+        "is_esp32_wl_image",
+        "calculate_esp32_wl_overhead"
+    ])
+except ImportError:
+    pass
+
 # Re-export constants with cleaner names (without PY_ prefix)
 try:
     from fatfs.wrapper import (
