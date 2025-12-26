@@ -380,7 +380,12 @@ cdef class FILINFO_Handle:
     def get_name(self):
         """Get filename from FILINFO structure"""
         # Assuming fname is a null-terminated string
-        return (<bytes>self.fno.fname).decode('utf-8')
+        # Use 'replace' error handler to handle invalid UTF-8 bytes (e.g., 0xFF in deleted entries)
+        try:
+            return (<bytes>self.fno.fname).decode('utf-8', errors='replace')
+        except:
+            # Fallback: try ASCII with replace
+            return (<bytes>self.fno.fname).decode('ascii', errors='replace')
     
     def get_size(self):
         """Get file size"""

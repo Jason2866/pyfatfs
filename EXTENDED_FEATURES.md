@@ -1,6 +1,6 @@
 # Extended Features for fatfs-python
 
-This document describes the extended directory traversal features added to fatfs-python v0.1.3+.
+This document describes the extended directory traversal features added to fatfs-python.
 
 ## Overview
 
@@ -54,7 +54,7 @@ export CYTHONIZE=1
 python3 -m build
 
 # Install locally for testing
-pip install dist/fatfs-0.1.3-*.whl
+pip install dist/fatfs-0.1.8-*.whl
 ```
 
 ## Usage Examples

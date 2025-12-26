@@ -70,12 +70,21 @@ class PartitionExtended:
                 if ret != FR_OK:
                     break
                 
-                name = fh.get_name()
+                try:
+                    name = fh.get_name()
+                except (UnicodeDecodeError, UnicodeError):
+                    # Skip entries with invalid UTF-8 (e.g., deleted entries with 0xFF)
+                    continue
+                
                 if not name or name == '':
                     break
                 
                 # Skip . and ..
                 if name in ('.', '..'):
+                    continue
+                
+                # Skip entries that contain replacement characters (from invalid UTF-8)
+                if '\ufffd' in name:
                     continue
                     
                 entries.append(name)

@@ -6,7 +6,7 @@ This is an enhanced fork with extended directory traversal features, improved AP
 
 ## What's Different from Original?
 
-### Extended Features (v0.1.4)
+### Extended Features
 - ✅ **Full Directory Traversal**: `walk()`, `listdir()`, `stat()`
 - ✅ **Path Operations**: `exists()`, `isfile()`, `isdir()`
 - ✅ **File Operations**: `remove()`, `rmdir()`, `rename()`
@@ -160,16 +160,12 @@ Contributions are welcome! Please:
 
 ## Changelog
 
-### v0.1.4 (2024-12-25) - Fork Release
+### v0.1.8 (2024-12-26) - Fork Release
 - Added extended directory traversal features
 - Improved diskio.py with Abstract Base Class
 - Fixed SyntaxWarnings in Python 3.13+
 - Added comprehensive documentation
 - Better error handling and type hints
-
-### v0.1.3 (Original)
-- Fixed assert() syntax warnings
-- Added Python 3.8-3.13 support
 
 ### v0.1.2 (Original)
 - Initial alpha release
