@@ -6,7 +6,7 @@ This is a fork of [fatfs-python](https://github.com/krakonos/fatfs-python) by La
 
 ## What's New in fatfs-ng
 
-### Extended Features (v0.1.4)
+### Extended Features
 - ✅ **Complete Directory Traversal**: `walk()`, `listdir()`, `stat()`
 - ✅ **Path Operations**: `exists()`, `isfile()`, `isdir()`
 - ✅ **File Operations**: `remove()`, `rmdir()`, `rename()`
@@ -97,7 +97,6 @@ partition = create_extended_partition(disk)
 ## Documentation
 
 - [Extended Features Guide](EXTENDED_FEATURES.md)
-- [Changelog](CHANGELOG.md)
 - [Original fatfs-python](https://github.com/krakonos/fatfs-python)
 
 ## Differences from Original
@@ -109,7 +108,6 @@ partition = create_extended_partition(disk)
 | Type Hints | ❌ Partial | ✅ Complete |
 | Error Messages | ⚠️ Basic | ✅ Descriptive |
 | Python 3.13+ | ⚠️ Warnings | ✅ Clean |
-| Documentation | ⚠️ Basic | ✅ Comprehensive |
 | Status | Alpha | Beta |
 
 ## Credits
