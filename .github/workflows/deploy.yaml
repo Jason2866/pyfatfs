@@ -1,19 +1,26 @@
-name: Build and upload to PyPI
+name: Build and Deploy Package
 
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      upload_to_pypi:
+        description: 'Upload to PyPI after building'
+        required: true
+        default: false
+        type: boolean
 
 jobs:
-  make_sdist:
-    name: Make SDist
-    runs-on: ubuntu-latest
+  build_sdist:
+    name: Build source distribution
+    runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
-        submodules: true
+        submodules: recursive
+        fetch-depth: 0
     
     - name: Setup Python
       uses: actions/setup-python@v5
@@ -27,12 +34,14 @@ jobs:
       run: |
         python -m cython -3 fatfs/wrapper.pyx
     
-    - name: Build SDist
-      run: CYTHONIZE=0 python -m build --sdist
+    - name: Build sdist
+      run: |
+        pip install build
+        CYTHONIZE=0 python -m build . --sdist
     
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v6
       with:
-        name: fatfs-ng-dist-src
+        name: wheels-sdist
         path: dist/*.tar.gz
     
     - name: Check metadata
@@ -43,32 +52,90 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-22.04, macos-15-intel, windows-latest]
+    
+    env:
+      CIBW_BUILD: "cp38-* cp39-* cp310-* cp311-* cp312-* cp313-* cp314-*"
+      CIBW_SKIP: "*-musllinux_aarch64"
+      CIBW_ARCHS_LINUX: "x86_64 i686 aarch64"
+      CIBW_ARCHS_WINDOWS: "AMD64 ARM64"
+      CIBW_BEFORE_BUILD: pip install "cython>=3.0.0"
+      CIBW_ENVIRONMENT: CYTHONIZE=1
+      CIBW_ENVIRONMENT_PASS_LINUX: CYTHONIZE
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
-          submodules: true
+          submodules: recursive
+          fetch-depth: 0
+      
+      - name: Setup QEMU # Needed to build aarch64 wheels
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: all
       
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.19.2
+        uses: pypa/cibuildwheel@v3.3.1
+      
+      - uses: actions/upload-artifact@v6
+        with:
+          name: wheels-${{ matrix.os }}
+          path: ./wheelhouse/*.whl
+
+  build_wheels_macos_arm64:
+    name: Build ARM64 wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest]
+        cibw_archs: ["arm64"]
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v3.3.1
         env:
-          CIBW_ARCHS_MACOS: x86_64 arm64
+          CIBW_BUILD: "cp38-* cp39-* cp310-* cp311-* cp312-* cp313-* cp314-*"
+          CIBW_SKIP: "pp*"
+          CIBW_ARCHS: ${{ matrix.cibw_archs }}
           CIBW_BEFORE_BUILD: pip install "cython>=3.0.0"
           CIBW_ENVIRONMENT: CYTHONIZE=1
-          CIBW_ENVIRONMENT_PASS_LINUX: CYTHONIZE
-          CIBW_SKIP: "*-win32 pp* *-musllinux*"
-          CIBW_BUILD: "cp38-* cp39-* cp310-* cp311-* cp312-* cp313-*"
-      
-      - uses: actions/upload-artifact@v4
-        with:
-          name: fatfs-ng-dist-${{ matrix.os }}
-          path: wheelhouse/*.whl
+          CIBW_REPAIR_WHEEL_COMMAND: |
+            echo "Target delocate archs: {delocate_archs}"
 
-  upload_to_pypi:
-    name: Upload to PyPI
-    needs: [build_wheels, make_sdist]
-    runs-on: ubuntu-latest
+            ORIGINAL_WHEEL={wheel}
+
+            echo "Running delocate-listdeps to list linked original wheel dependencies"
+            delocate-listdeps --all $ORIGINAL_WHEEL
+
+            echo "Renaming .whl file when architecture is 'macosx_arm64'"
+            RENAMED_WHEEL=${ORIGINAL_WHEEL//x86_64/arm64}
+
+            echo "Wheel will be renamed to $RENAMED_WHEEL"
+            mv $ORIGINAL_WHEEL $RENAMED_WHEEL
+
+            echo "Running delocate-wheel command on $RENAMED_WHEEL"
+            delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v $RENAMED_WHEEL
+
+            echo "Running delocate-listdeps to list linked wheel dependencies"
+            WHEEL_SIMPLE_FILENAME="${RENAMED_WHEEL##*/}"
+            delocate-listdeps --all {dest_dir}/$WHEEL_SIMPLE_FILENAME
+
+            echo "DONE."
+      - uses: actions/upload-artifact@v6
+        with:
+          name: wheels-macos-arm64
+          path: ./wheelhouse/*.whl
+
+  upload_pypi:
+    needs: [build_wheels, build_wheels_macos_arm64, build_sdist]
+    runs-on: ubuntu-22.04
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') || inputs.upload_to_pypi }}
     environment:
       name: pypi
       url: https://pypi.org/p/fatfs-ng
@@ -77,14 +144,16 @@ jobs:
     
     steps:
     - name: Download artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v7
       with:
-        pattern: fatfs-ng-dist-*
+        pattern: wheels-*
         merge-multiple: true
         path: dist
     
     - name: Publish to PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
+      uses: pypa/gh-action-pypi-publish@v1.13.0
+      with:
+        skip-existing: true
       # Uncomment for testing with TestPyPI:
       # with:
       #   repository-url: https://test.pypi.org/legacy/
